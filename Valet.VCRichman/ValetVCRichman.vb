@@ -96,12 +96,26 @@ Public Class ValetVCRichman
     Public Enum AmbientStages
         OFF
         WAITING
+
+        AMB1_1
+        AMB1_2
+        AMB1_3
+        AMB1_4
+        AMB1_5
+        AMB1_6
+        AMB1_7
+        AMB1_8
+        AMB1_9
+        AMB1_10
+        AMB1_11
     End Enum
 
     Public Sub New()
         CurrentMinigameStage = MiniGameStages.OFF
 
         EntourageGroup = World.AddRelationShipGroup("Entourage")
+        World.SetRelationshipBetweenGroups(Relationship.Respect, EntourageGroup, Game.Player.Character.RelationshipGroup)
+        World.SetRelationshipBetweenGroups(Relationship.Respect, Game.Player.Character.RelationshipGroup, EntourageGroup)
 
         clearAllActiveBlips()
     End Sub
@@ -252,8 +266,10 @@ Public Class ValetVCRichman
 
         Select Case r
             Case Is < 2
+                GTA.UI.Notify("TriggerNextEvent: Starting IN Seq")
                 Start_IN_Sequence()
             Case Else
+                GTA.UI.Notify("TriggerNextEvent: Starting OUT Seq")
                 Start_OUT_Sequence()
         End Select
 
@@ -265,7 +281,6 @@ Public Class ValetVCRichman
     '==================
 
     Public Sub Start_IN_Sequence()
-        CurrentCustomer = Nothing
         CurrentCustomer = New Customer
         CurrentMinigameStage = MiniGameStages.IN_1
     End Sub
@@ -297,7 +312,9 @@ Public Class ValetVCRichman
 
         Dim dist As Single
         dist = CurrentCustomer.Entity.Position.DistanceTo(DropOffPoint)
-        If dist > 3 Then Exit Sub
+        If dist > 8 Then Exit Sub
+
+        If CurrentCustomer.Car.Speed > 0.05 Then Exit Sub
 
         ' ALL CONDITIONS MET
 
@@ -366,7 +383,8 @@ Public Class ValetVCRichman
 
         If CurrentCustomer.Entourage.Count > 0 Then
             For Each p As Ped In CurrentCustomer.Entourage
-                p.Task.GoTo(HoldingPosition)
+                Dim offsetVector As New Vector3(RND.Next(-40, 40) / 10, RND.Next(-40, 40) / 10, 0)
+                p.Task.GoTo(HoldingPosition + offsetVector)
             Next
         End If
 
@@ -433,12 +451,12 @@ Public Class ValetVCRichman
         If CurrentCustomer.Entourage.Count > 0 Then
             For Each p As Ped In CurrentCustomer.Entourage
                 p.MarkAsNoLongerNeeded()
+                p.Delete()
             Next
-            CurrentCustomer.Entourage = Nothing
+            CurrentCustomer.Entourage.Clear()
         End If
 
         CurrentCustomer.Car.PreviouslyOwnedByPlayer = True
-        CurrentCustomer.Entity.Task.WanderAround(HoldingPosition, 3)
 
         CurrentCustomer = Nothing
 
@@ -481,12 +499,12 @@ Public Class ValetVCRichman
         Dim numOfSeats As Integer = GTA.Native.Function.Call(Of Integer)(Native.Hash.GET_VEHICLE_MAX_NUMBER_OF_PASSENGERS, CurrentCustomer.Car)
         Dim numOfPax As Integer = RND.Next(0, numOfSeats + 1)
 
-        If numOfPax > 2 Then
-            Dim p3 As Ped
-            p3 = World.CreateRandomPed(HoldingPosition)
-            CurrentCustomer.Entourage.Add(p3)
-            p3.RelationshipGroup = EntourageGroup
-        End If
+        'If numOfPax > 2 Then
+        '    Dim p3 As Ped
+        '    p3 = World.CreateRandomPed(HoldingPosition)
+        '    CurrentCustomer.Entourage.Add(p3)
+        'p3.RelationshipGroup = EntourageGroup
+        'End If
 
         If numOfPax > 1 Then
             Dim p2 As Ped
@@ -501,17 +519,20 @@ Public Class ValetVCRichman
             CurrentCustomer.Entourage.Add(p1)
             p1.RelationshipGroup = EntourageGroup
         End If
+        GTA.UI.Notify("Start OUT: step 1")
 
-        
 
-        CurrentCustomer.Entity.Task.GoTo(Game.Player.Character)
+        CurrentCustomer.Entity.Task.GoTo(Game.Player.Character, Game.Player.Character.ForwardVector * 2.5)
 
+        GTA.UI.Notify("Start OUT: step 2")
         If CurrentCustomer.Entourage IsNot Nothing Then
             For Each p As Ped In CurrentCustomer.Entourage
-                p.Task.GoTo(CurrentCustomer.Entity)
+                Dim offset As Vector3
+                offset = New Vector3(RND.Next(-20, 20) / 10, RND.Next(-20, 20) / 10, 0)
+                p.Task.GoTo(CurrentCustomer.Entity, offset)
             Next
         End If
-
+        GTA.UI.Notify("StartOUT: step 3")
 
         CurrentMinigameStage = MiniGameStages.OUT_1
     End Sub
@@ -576,7 +597,10 @@ Public Class ValetVCRichman
 
         If CurrentCustomer.Entourage IsNot Nothing Then
             For Each p As Ped In CurrentCustomer.Entourage
-                p.Task.GoTo(CurrentCustomer.Entity)
+                Dim offset As Vector3
+                offset = New Vector3(RND.Next(-60, 60) / 10, RND.Next(-60, 60) / 10, 0)
+                p.Task.GoTo(CurrentCustomer.Entity, offset)
+                p.Task.GoTo(CurrentCustomer.Entity, offset)
             Next
         End If
 
@@ -868,7 +892,7 @@ Public Class ValetVCRichman
     Public Sub TerminateMinigame(Optional condition As String = "")
         Select Case condition
             Case "leftarea"
-                GTA.UI.Notify("Valet missions terminated. You left the area")
+                GTA.UI.Notify("Valet missions terminated. You left the area.")
             Case "joyride"
                 GTA.UI.Notify("The hotel called the cops because you stole a customer's vehicle!")
                 Game.Player.WantedLevel = 2
@@ -905,53 +929,61 @@ Public Class ValetVCRichman
         End Select
 
         isMinigameActive = False
-        NumOfMistakes = 0
         DismissAllEntities()
         CurrentMinigameStage = MiniGameStages.OFF
     End Sub
 
     Public Sub DismissAllEntities()
-
-        If ListOfCustomers IsNot Nothing Then
+        DebugMessage = "Dismiss Start"
             If ListOfCustomers.Count > 0 Then
                 For Each c As Customer In ListOfCustomers
+                    DebugMessage = "Dismiss 1"
+                    If c IsNot Nothing Then
+                        If c.Entity IsNot Nothing Then
+                            If c.Entity.Exists Then
 
-                    If c.Entity IsNot Nothing And c.Entity.Exists Then
-
-                        If c.EntityBlip IsNot Nothing Then
-                            If c.EntityBlip.Exists Then
-                                c.EntityBlip.Remove()
-                            End If
-                        End If
-
-                        If c.CarBlip IsNot Nothing Then
-                            If c.CarBlip.Exists Then
-                                c.CarBlip.Remove()
-                            End If
-                        End If
-
-                        If c.Car IsNot Nothing Then
-                            If c.Car.Exists Then
-                                c.Car.MarkAsNoLongerNeeded()
-                            End If
-                        End If
-
-                        If c.Entourage IsNot Nothing Then
-                            If c.Entourage.Count > 0 Then
-                                For Each p As Ped In c.Entourage
-                                    If p.CurrentBlip.Exists Then
-                                        p.CurrentBlip.Remove()
+                                DebugMessage = "Dismiss 2"
+                                If c.EntityBlip IsNot Nothing Then
+                                    If c.EntityBlip.Exists Then
+                                        c.EntityBlip.Remove()
                                     End If
-                                    p.MarkAsNoLongerNeeded()
-                                Next
+                                End If
+
+                                DebugMessage = "Dismiss 3"
+                                If c.CarBlip IsNot Nothing Then
+                                    If c.CarBlip.Exists Then
+                                        c.CarBlip.Remove()
+                                    End If
+                                End If
+
+                                DebugMessage = "Dismiss 4"
+                                If c.Car IsNot Nothing Then
+                                    If c.Car.Exists Then
+                                        c.Car.MarkAsNoLongerNeeded()
+                                    End If
+                                End If
+
+                                DebugMessage = "Dismiss 5"
+                                If c.Entourage IsNot Nothing Then
+                                    If c.Entourage.Count > 0 Then
+                                        For Each p As Ped In c.Entourage
+                                            If p.CurrentBlip IsNot Nothing Then
+                                                If p.CurrentBlip.Exists Then
+                                                    p.CurrentBlip.Remove()
+                                                End If
+                                            End If
+                                            p.MarkAsNoLongerNeeded()
+                                        Next
+                                    End If
+                                End If
+
+                                DebugMessage = "Dismiss 6"
+                                c.Entity.MarkAsNoLongerNeeded()
                             End If
                         End If
-
-                        c.Entity.MarkAsNoLongerNeeded()
                     End If
 
                 Next
-            End If
         End If
 
         If GarageBlip IsNot Nothing Then
@@ -960,14 +992,20 @@ Public Class ValetVCRichman
             End If
         End If
 
+        DebugMessage = "Dismiss 7"
         If ValetPed IsNot Nothing Then
             If ValetPed.Exists Then
                 ValetPed.MarkAsNoLongerNeeded()
             End If
         End If
 
+        DebugMessage = "Dismiss 8"
         ListOfCustomers.Clear()
-        CurrentCustomer = Nothing
+        If CurrentCustomer IsNot Nothing Then
+            CurrentCustomer = Nothing
+        End If
+
+        DebugMessage = "Dismiss Complete"
     End Sub
 
 
@@ -1086,21 +1124,13 @@ Public Class Customer
 
         ListOfCustomers.Add(Me)
 
-        'GTA.Native.Function.Call(Native.Hash.CLEAR_AREA, CarSpawn1.X, CarSpawn1.Y, CarSpawn1.Z, 25, False)
-        'GTA.Native.Function.Call(Native.Hash.CLEAR_AREA_OF_PEDS, PedSpawn1.X, PedSpawn1.Y, PedSpawn1.Z, 25, False)
-        'GTA.Native.Function.Call(Native.Hash.CLEAR_AREA_OF_VEHICLES, CarSpawn1.X, CarSpawn1.Y, CarSpawn1.Z, 25, False)
-
         Dim i As Integer = RND.Next(0, CarTypes.Length)
         Car = World.CreateVehicle(CarTypes(i), CarSpawn1, CarHeading1)
         Car.IsStolen = False
         Car.IsWanted = False
-        Dim plate As String = RND.Next(0, 10) & RND.Next(0, 10) & UppercaseLetters(RND.Next(0, UppercaseLetters.Length + 1)) & UppercaseLetters(RND.Next(0, UppercaseLetters.Length + 1)) & UppercaseLetters(RND.Next(0, UppercaseLetters.Length + 1)) & RND.Next(0, 10) & RND.Next(0, 10) & RND.Next(0, 10)
+        Dim plate As String = RND.Next(0, 10) & RND.Next(0, 10) & UppercaseLetters(RND.Next(0, UppercaseLetters.Length)) & UppercaseLetters(RND.Next(0, UppercaseLetters.Length)) & UppercaseLetters(RND.Next(0, UppercaseLetters.Length)) & RND.Next(0, 10) & RND.Next(0, 10) & RND.Next(0, 10)
         Car.NumberPlate = plate
 
-        Entity = Car.CreateRandomPedOnSeat(VehicleSeat.Driver) 'World.CreateRandomPed(PedSpawn1) 'GTA.Native.Function.Call(Of Ped)(Native.Hash.CREATE_RANDOM_PED, PedSpawn1.X, PedSpawn1.Y, PedSpawn1.Z)
-        Entity.Money = RND.Next(20, 200)
-
-        'Exit Sub
 
         Dim numOfSeats As Integer = GTA.Native.Function.Call(Of Integer)(Native.Hash.GET_VEHICLE_MAX_NUMBER_OF_PASSENGERS, Car)
         Dim numOfPax As Integer = RND.Next(0, numOfSeats + 1)
@@ -1123,7 +1153,11 @@ Public Class Customer
             Entourage.Add(p1)
         End If
 
-        Entity.Task.DriveTo(Car, DropOffPoint, 1, DrivingSpeed, 1)
+        Entity = Car.CreateRandomPedOnSeat(VehicleSeat.Driver) 'World.CreateRandomPed(PedSpawn1) 'GTA.Native.Function.Call(Of Ped)(Native.Hash.CREATE_RANDOM_PED, PedSpawn1.X, PedSpawn1.Y, PedSpawn1.Z)
+        Entity.Money = RND.Next(20, 200)
+
+        Dim offsetVector As New Vector3(RND.Next(-20, 20) / 10, RND.Next(-20, 20) / 10, 0)
+        Entity.Task.DriveTo(Car, DropOffPoint + offsetVector, 1, DrivingSpeed, 1)
 
     End Sub
 
@@ -1137,7 +1171,12 @@ Public Module Customers
     Public UppercaseLetters() As String = {"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"}
 End Module
 
+Public Module AmbientVariables
 
+    Public Sub DismissAllAmbientEntities()
+
+    End Sub
+End Module
 
 ' TO DO
 
