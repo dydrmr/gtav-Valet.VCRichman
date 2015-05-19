@@ -52,6 +52,8 @@ Public Class ValetVCRichman
 
     Public CurrentCustomer As Customer
 
+    Public EntourageGroup As Integer
+
     Public IN_5_Timer As Integer = 0
     Public OUT_2_Timer As Integer = 0
     Public OUT_9_Timer As Integer = 0
@@ -91,8 +93,16 @@ Public Class ValetVCRichman
         BACK_4
     End Enum
 
+    Public Enum AmbientStages
+        OFF
+        WAITING
+    End Enum
+
     Public Sub New()
         CurrentMinigameStage = MiniGameStages.OFF
+
+        EntourageGroup = World.AddRelationShipGroup("Entourage")
+
         clearAllActiveBlips()
     End Sub
 
@@ -233,13 +243,15 @@ Public Class ValetVCRichman
         ' All conditions met
 
         Dim r As Integer = 0
+        Dim count As Integer = 0
+        count = ListOfCustomers.Count
 
-        If ListOfCustomers.Count > 2 Then
-            r = RND.Next(0, 2)
+        If count > 2 Then
+            r = RND.Next(0, 4 + 1)
         End If
 
         Select Case r
-            Case 0
+            Case Is < 2
                 Start_IN_Sequence()
             Case Else
                 Start_OUT_Sequence()
@@ -425,6 +437,7 @@ Public Class ValetVCRichman
             CurrentCustomer.Entourage = Nothing
         End If
 
+        CurrentCustomer.Car.PreviouslyOwnedByPlayer = True
         CurrentCustomer.Entity.Task.WanderAround(HoldingPosition, 3)
 
         CurrentCustomer = Nothing
@@ -456,33 +469,37 @@ Public Class ValetVCRichman
 
     Public Sub Start_OUT_Sequence()
 
-        Dim i As Integer = RND.Next(0, ListOfCustomers.Count - 1)
+        Dim i As Integer = RND.Next(0, ListOfCustomers.Count - 2)
         CurrentCustomer = ListOfCustomers(i)
 
         CurrentCustomer.EntityBlip = CurrentCustomer.Entity.AddBlip
         CurrentCustomer.EntityBlip.Color = BlipColor.Blue
         CurrentCustomer.EntityBlip.Scale = 0.75
 
+        CurrentCustomer.Entity.RelationshipGroup = EntourageGroup
 
         Dim numOfSeats As Integer = GTA.Native.Function.Call(Of Integer)(Native.Hash.GET_VEHICLE_MAX_NUMBER_OF_PASSENGERS, CurrentCustomer.Car)
         Dim numOfPax As Integer = RND.Next(0, numOfSeats + 1)
 
         If numOfPax > 2 Then
             Dim p3 As Ped
-            p3 = CurrentCustomer.Car.CreateRandomPedOnSeat(VehicleSeat.RightFront)
+            p3 = World.CreateRandomPed(HoldingPosition)
             CurrentCustomer.Entourage.Add(p3)
+            p3.RelationshipGroup = EntourageGroup
         End If
 
         If numOfPax > 1 Then
             Dim p2 As Ped
-            p2 = CurrentCustomer.Car.CreateRandomPedOnSeat(VehicleSeat.RightFront)
+            p2 = World.CreateRandomPed(HoldingPosition)
             CurrentCustomer.Entourage.Add(p2)
+            p2.RelationshipGroup = EntourageGroup
         End If
 
         If numOfPax > 0 Then
             Dim p1 As Ped
-            p1 = CurrentCustomer.Car.CreateRandomPedOnSeat(VehicleSeat.RightFront)
+            p1 = World.CreateRandomPed(HoldingPosition)
             CurrentCustomer.Entourage.Add(p1)
+            p1.RelationshipGroup = EntourageGroup
         End If
 
         
@@ -491,7 +508,7 @@ Public Class ValetVCRichman
 
         If CurrentCustomer.Entourage IsNot Nothing Then
             For Each p As Ped In CurrentCustomer.Entourage
-                p.Task.GoTo(CurrentCustomer.Entity, New Vector3(RND.Next(-20, 20) / 10, RND.Next(-20, 20) / 10, 0))
+                p.Task.GoTo(CurrentCustomer.Entity)
             Next
         End If
 
@@ -522,9 +539,9 @@ Public Class ValetVCRichman
                 txt = "I lost my stub. My plate number is " & CurrentCustomer.Car.NumberPlate.ToString & "."
             Case 3
                 Dim plate As String = CurrentCustomer.Car.NumberPlate.ToString
-                txt = "Oooh, I'm drunk. Where's my stub? I think my plate ends in -" & plate.Substring(plate.Length - RND.Next(2, 5)) & "."
+                txt = "Where's my stub? I think my plate ends in -" & plate.Substring(plate.Length - RND.Next(2, 5)) & "."
             Case 4
-                txt = "I had number " & stub & "."
+                txt = "I have number " & stub & "."
             Case 5
                 txt = "Car " & stub & "."
             Case Else
@@ -535,7 +552,7 @@ Public Class ValetVCRichman
             r = RND.Next(0, 2)
             If r > 0 Then
                 CurrentCustomer.WantsTopDown = True
-                txt = txt & " And can you put put the top down, too?"
+                txt = txt & " And can you put the top down, too?"
             End If
         End If
 
@@ -559,7 +576,7 @@ Public Class ValetVCRichman
 
         If CurrentCustomer.Entourage IsNot Nothing Then
             For Each p As Ped In CurrentCustomer.Entourage
-                p.Task.GoTo(CurrentCustomer.Entity, New Vector3(RND.Next(-20, 20) / 10, RND.Next(-20, 20) / 10, 0))
+                p.Task.GoTo(CurrentCustomer.Entity)
             Next
         End If
 
@@ -643,11 +660,11 @@ Public Class ValetVCRichman
             Dim i As Integer = 0
             For Each p As Ped In CurrentCustomer.Entourage
                 If i = 0 Then
-                    p.Task.EnterVehicle(CurrentCustomer.Car, VehicleSeat.RightFront, 3000)
+                    p.Task.EnterVehicle(CurrentCustomer.Car, VehicleSeat.RightFront, 12000)
                 ElseIf i = 1 Then
-                    p.Task.EnterVehicle(CurrentCustomer.Car, VehicleSeat.RightRear, 3000)
+                    p.Task.EnterVehicle(CurrentCustomer.Car, VehicleSeat.RightRear, 12000)
                 ElseIf i = 2 Then
-                    p.Task.EnterVehicle(CurrentCustomer.Car, VehicleSeat.LeftRear, 3000)
+                    p.Task.EnterVehicle(CurrentCustomer.Car, VehicleSeat.LeftRear, 12000)
                 End If
             Next
         End If
@@ -710,7 +727,7 @@ Public Class ValetVCRichman
 
         ' All conditions met
 
-        CurrentCustomer.Entity.Task.DriveTo(CurrentCustomer.Car, DespawnPoint1, 5, 10, 1)
+        CurrentCustomer.Entity.Task.DriveTo(CurrentCustomer.Car, DespawnPoint1, 5, CurrentCustomer.DrivingSpeed, 1)
 
         CurrentMinigameStage = MiniGameStages.OUT_10
     End Sub
@@ -895,42 +912,59 @@ Public Class ValetVCRichman
 
     Public Sub DismissAllEntities()
 
-        If ListOfCustomers.Count > 0 Then
-            For Each c As Customer In ListOfCustomers
+        If ListOfCustomers IsNot Nothing Then
+            If ListOfCustomers.Count > 0 Then
+                For Each c As Customer In ListOfCustomers
 
-                If c.Entity IsNot Nothing And c.Entity.Exists Then
+                    If c.Entity IsNot Nothing And c.Entity.Exists Then
 
-                    If c.EntityBlip IsNot Nothing Then
-                        If c.EntityBlip.Exists Then
-                            c.EntityBlip.Remove()
-                        End If
-                    End If
-
-                    If c.CarBlip IsNot Nothing Then
-                        If c.CarBlip.Exists Then
-                            c.CarBlip.Remove()
-                        End If
-                    End If
-
-                    If c.Car IsNot Nothing And c.Car.Exists Then c.Car.MarkAsNoLongerNeeded()
-
-                    If c.Entourage IsNot Nothing Then
-                        For Each p As Ped In c.Entourage
-                            If p.CurrentBlip.Exists Then
-                                p.CurrentBlip.Remove()
+                        If c.EntityBlip IsNot Nothing Then
+                            If c.EntityBlip.Exists Then
+                                c.EntityBlip.Remove()
                             End If
-                            p.MarkAsNoLongerNeeded()
-                        Next
+                        End If
+
+                        If c.CarBlip IsNot Nothing Then
+                            If c.CarBlip.Exists Then
+                                c.CarBlip.Remove()
+                            End If
+                        End If
+
+                        If c.Car IsNot Nothing Then
+                            If c.Car.Exists Then
+                                c.Car.MarkAsNoLongerNeeded()
+                            End If
+                        End If
+
+                        If c.Entourage IsNot Nothing Then
+                            If c.Entourage.Count > 0 Then
+                                For Each p As Ped In c.Entourage
+                                    If p.CurrentBlip.Exists Then
+                                        p.CurrentBlip.Remove()
+                                    End If
+                                    p.MarkAsNoLongerNeeded()
+                                Next
+                            End If
+                        End If
+
+                        c.Entity.MarkAsNoLongerNeeded()
                     End If
 
-                    c.Entity.MarkAsNoLongerNeeded()
-                End If
-
-            Next
+                Next
+            End If
         End If
 
-        If GarageBlip IsNot Nothing And GarageBlip.Exists Then GarageBlip.Remove()
-        If ValetPed IsNot Nothing And ValetPed.Exists Then ValetPed.MarkAsNoLongerNeeded()
+        If GarageBlip IsNot Nothing Then
+            If GarageBlip.Exists Then
+                GarageBlip.Remove()
+            End If
+        End If
+
+        If ValetPed IsNot Nothing Then
+            If ValetPed.Exists Then
+                ValetPed.MarkAsNoLongerNeeded()
+            End If
+        End If
 
         ListOfCustomers.Clear()
         CurrentCustomer = Nothing
@@ -1032,6 +1066,8 @@ Public Class Customer
     Public Car As Vehicle
     Public CarBlip As Blip
 
+    Public DrivingSpeed As Single = RND.Next(60, 150) / 10
+
     Public CarHealthReceived As Integer = 1000
     Public EngineHealthReceived As Integer = 1000
     Public TankHealthReceived As Integer = 1000
@@ -1087,7 +1123,7 @@ Public Class Customer
             Entourage.Add(p1)
         End If
 
-        Entity.Task.DriveTo(Car, DropOffPoint, 1, 10, 1)
+        Entity.Task.DriveTo(Car, DropOffPoint, 1, DrivingSpeed, 1)
 
     End Sub
 
@@ -1118,3 +1154,12 @@ End Module
 '    - People walking by
 
 ' 4) Wait times differ during different times of the day / days of the week
+
+' 5) Change implementation of car list
+'    - include full make/model string for use in case customer forgot valet stub
+
+' 6) Spawn only rich peds instead of random ones
+
+' 7) Clear area around spawn point for existing vehicles before spawning another.
+
+' 8) Peds follow point array to holding point instead of running
